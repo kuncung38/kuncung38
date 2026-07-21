@@ -17,6 +17,7 @@ if (!token) {
 
 const query = `is:pr author:${username} is:merged is:public`;
 const searchUrl = new URL("https://api.github.com/search/issues");
+
 searchUrl.searchParams.set("q", query);
 searchUrl.searchParams.set("sort", "updated");
 searchUrl.searchParams.set("order", "desc");
@@ -43,33 +44,59 @@ async function githubFetch(url) {
   return response.json();
 }
 
-const searchResult = await githubFetch(searchUrl);
+const searchResults = [];
+
+for (const page of [1, 2]) {
+  searchUrl.searchParams.set("page", String(page));
+
+  const result = await githubFetch(searchUrl);
+  searchResults.push(...result.items);
+
+  if (result.items.length < 100) {
+    break;
+  }
+}
 
 const pullRequests = await Promise.all(
-  searchResult.items.map((item) => githubFetch(item.pull_request.url)),
+  searchResults.map((item) => githubFetch(item.pull_request.url)),
 );
 
 const contributions = pullRequests
   .filter((pullRequest) => {
-    const owner = pullRequest.base.repo.owner.login;
+    const repositoryOwner = pullRequest.base.repo.owner.login;
 
     return (
       pullRequest.merged_at &&
       pullRequest.base.repo.private === false &&
-      owner.toLowerCase() !== username.toLowerCase()
+      repositoryOwner.toLowerCase() !== username.toLowerCase()
     );
   })
   .sort((a, b) => new Date(b.merged_at) - new Date(a.merged_at))
-  .slice(0, 10);
+  .slice(0, 110);
 
-const contributionList = contributions.length
-  ? contributions
-      .map(
-        (pullRequest) =>
-          `- **[${pullRequest.base.repo.full_name}](${pullRequest.base.repo.html_url})** — [#${pullRequest.number}: ${pullRequest.title}](${pullRequest.html_url})`,
-      )
-      .join("\n")
+function formatContribution(pullRequest) {
+  const repository = pullRequest.base.repo;
+
+  return `- **[${repository.full_name}](${repository.html_url})** — [#${pullRequest.number}: ${pullRequest.title}](${pullRequest.html_url})`;
+}
+
+const visibleContributions = contributions.slice(0, 10);
+const additionalContributions = contributions.slice(10);
+
+let contributionList = visibleContributions.length
+  ? visibleContributions.map(formatContribution).join("\n")
   : "_No merged open-source pull requests found yet._";
+
+if (additionalContributions.length > 0) {
+  contributionList += `
+
+<details>
+<summary>Show ${additionalContributions.length} more contributions</summary>
+
+${additionalContributions.map(formatContribution).join("\n")}
+
+</details>`;
+}
 
 const readme = await readFile(README_PATH, "utf8");
 const startIndex = readme.indexOf(START_MARKER);
@@ -82,6 +109,7 @@ if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
 }
 
 const contentStart = startIndex + START_MARKER.length;
+
 const updatedReadme =
   `${readme.slice(0, contentStart)}\n` +
   `${contributionList}\n` +
@@ -89,4 +117,6 @@ const updatedReadme =
 
 await writeFile(README_PATH, updatedReadme, "utf8");
 
-console.log(`Updated README.md with ${contributions.length} contribution(s).`);
+console.log(
+  `Updated README.md with ${contributions.length} contribution(s).`,
+);
