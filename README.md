@@ -7,5 +7,5 @@ I'm interested in backend systems, APIs, developer tooling, and open source.
 ## Open-Source Contributions
 
 <!-- OSS-CONTRIBUTIONS:START -->
-- **[lingdojo/kana-dojo](https://github.com/lingdojo/kana-dojo)** — [#25401: content: add new trivia question](https://github.com/lingdojo/kana-dojo/pull/25401)
+_No merged open-source pull requests found yet._
 <!-- OSS-CONTRIBUTIONS:END -->
